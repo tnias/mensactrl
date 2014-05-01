@@ -2,8 +2,8 @@ AC_PREREQ(2.59)
 
 esyscmd([echo "define(myversion, $(dir=$(basename $(pwd)); if test \"${dir%%-trunk}\" != \"$dir\"; then echo 99999999-9; else prefix=${dir%%-[0-9]*-[0-9]}; echo ${dir##$prefix-}; fi))"])
 
-AC_INIT([mensa-control], myversion, [bugs@pengutronix.de])
-AC_CONFIG_SRCDIR([mensa-control.c])
+AC_INIT([mensa-control], myversion, [daniel@totalueberwachung.de])
+AC_CONFIG_SRCDIR([src])
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 
@@ -42,6 +42,8 @@ AM_INIT_AUTOMAKE([foreign no-exeext dist-bzip2])
 #AC_SUBST(REQUIRES_LIBSOMETHING)
 #PKG_CHECK_MODULES(libsomething, $REQUIRES_LIBSOMETHING)
 
+PKG_CHECK_MODULES(ZMQ, libzmq)
+
 
 #
 # Debugging
@@ -65,6 +67,7 @@ fi
 
 AC_CONFIG_FILES([
 	Makefile
+	src/Makefile
 ])
 AC_OUTPUT
 
