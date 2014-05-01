@@ -1,8 +1,7 @@
 /*
- * Control WS281X LEDs connected to the LCDIF
+ * Control Mensadisplay connected to the LCDIF
  *
- * Code taken from the proof-of-concept tool by
- * (C) 2013 Jeroen Domburg (jeroen AT spritesmods.com)
+ * (C) 2014 Daniel Willmann <daniel@totalueberwachung.de>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,98 +32,87 @@
 
 #include <zmq.h>
 
-struct pixel {
-	uint16_t x, y;
-	uint8_t r, g, b;
-} __attribute__((packed));
+#include "common.h"
 
-struct ws281x_fb {
+struct mensa_fb {
 	int x_res, y_res;
 	int fd;
 	uint8_t *inputfb;
 	uint16_t *fbmem;
 };
 
-//This will encode a framebuffer with per-led RGB values into the weird framebuffer
-//data values we need to form the correct WS2811 driving waveform.
-void encodeToFb(struct ws281x_fb *wsfb) {
-	int pix, col, bit, bitmask, strip, n;
-	int p=0;
-	for (pix=0; pix<wsfb->x_res; pix++) { //STRIPLEN points...
-		for (col=0; col<3; col++) { //...of 3 bytes (r, g. b)
-			bitmask=0x80;
-			for (bit=0; bit<8; bit++) { //...of 8 bits each.
-				/* At 4MHz, a bit has 5 cycles. For an 1, it's high 4, low one. For an 0, it's high one, low 4. */
-				p++; /* First cycle is always 1 */
-				n=0;
-				//Iterate through every LED-strip to fetch the bit it needs to send out. Combine those
-				//in n.
-				for (strip=0; strip<wsfb->y_res; strip++) {
-					if (wsfb->inputfb[(wsfb->x_res*strip*3)+(pix*3)+col]&bitmask) n|=1<<strip;
-				}
-				wsfb->fbmem[p++]=n;
-				wsfb->fbmem[p++]=n;	//Middle 3 are dependent on bit value
-				wsfb->fbmem[p++]=n;
-				p++; /* Last cycle is always 0 */
-				bitmask>>=1; //next bit in byte
-			}
+void encodeToFb(struct mensa_fb *mensafb) {
+	int pix, row, idx;
+	uint16_t pattern;
+
+	for (row = 0; row < mensafb->y_res; row++) {
+		for (pix=0; pix<mensafb->x_res; pix++) {
+			idx = row*mensafb->x_res + pix;
+			if (mensafb->inputfb[idx] > 0)
+				pattern = 1;
+			else
+				pattern = 0;
+			pattern |= row << 13;
+
+			mensafb->fbmem[idx] = pattern;
 		}
 	}
 }
 
 
-//Helper function to set the value of a single pixel in the 'framebuffer'
-//of LED pixel values.
-void setPixel(struct ws281x_fb *wsfb, int pixel, int strip, int r, int g, int b) {
-	int pos=(strip*wsfb->x_res*3)+pixel*3;
-	if (strip<0 || strip>=wsfb->x_res) return;
-	if (pixel<0 || pixel>=wsfb->y_res) return;
-	wsfb->inputfb[pos++]=r; //My strips have R and G switched.
-	wsfb->inputfb[pos++]=g;
-	wsfb->inputfb[pos++]=b;
+void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
+{
+	int idx = row * mensafb->x_res + col;
+
+	if (col < 0 || col >= mensafb->x_res)
+		return;
+	if (row < 0 || row >= mensafb->y_res)
+		return;
+
+	mensafb->inputfb[idx] = bright;
 }
 
-static struct ws281x_fb *setup_fb(const char *devname, int x, int y)
+static struct mensa_fb *setup_fb(const char *devname, int x, int y)
 {
-	struct ws281x_fb *wsfb = malloc(sizeof(struct ws281x_fb));
+	struct mensa_fb *mensafb = malloc(sizeof(struct mensa_fb));
 	int i;
 
-	wsfb->fd = open(devname, O_RDWR);
-	if (wsfb->fd < 0) {
+	mensafb->fd = open(devname, O_RDWR);
+	if (mensafb->fd < 0) {
 		perror("opening fb");
-		free(wsfb);
+		free(mensafb);
 		exit(1);
 	}
-	wsfb->inputfb = malloc(x*y*3);
-	if (!wsfb->inputfb) {
-		free(wsfb);
+	mensafb->inputfb = malloc(x*y*3);
+	if (!mensafb->inputfb) {
+		free(mensafb);
 		exit(1);
 	}
-	memset(wsfb->inputfb, 0, x*y*3);
+	memset(mensafb->inputfb, 0, x*y*3);
 
-	wsfb->fbmem=mmap(NULL, x*5*24*2, PROT_READ|PROT_WRITE, MAP_SHARED, wsfb->fd, 0);
-	if (wsfb->fbmem==NULL) {
+	mensafb->fbmem=mmap(NULL, x*5*24*2, PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
+	if (mensafb->fbmem==NULL) {
 		perror("mmap'ing fb");
-		free(wsfb->inputfb);
-		free(wsfb);
+		free(mensafb->inputfb);
+		free(mensafb);
 		exit(1);
 	}
 	for (i = 0; i < x*y*5*24; i++) {
 		/* Init frame buffer bit clock. */
 		if (i % 5 == 0)
-			wsfb->fbmem[i] = 0xffff;
+			mensafb->fbmem[i] = 0xffff;
 		if (i % 5 == 4)
-			wsfb->fbmem[i] = 0x00;
+			mensafb->fbmem[i] = 0x00;
 	}
 
-	wsfb->x_res = x;
-	wsfb->y_res = y;
+	mensafb->x_res = x;
+	mensafb->y_res = y;
 
-	return wsfb;
+	return mensafb;
 }
 
 int main(int argc, char *argv[]) {
-	struct ws281x_fb *wsfb;
+	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
 	void *subscriber = zmq_socket (context, ZMQ_SUB);
 	int rc;
@@ -141,14 +129,14 @@ int main(int argc, char *argv[]) {
 	if (rc < 0)
 		perror("zmq_connect");
 
-	wsfb = setup_fb(argv[1], 10, 2);
+	mensafb = setup_fb(argv[1], 40, 7);
 
 	while (1) {
 		struct pixel pix;
 		zmq_recv(subscriber, &pix, sizeof(pix), 0);
-		printf("(%u, %u): r=%02x g=%02x b=%02x\n", pix.x, pix.y,  pix.r, pix.g, pix.b);
-		setPixel(wsfb, pix.x, pix.y, pix.r, pix.g, pix.b);
-		encodeToFb(wsfb);
+		printf("(%u, %u): bright=%02x\n", pix.x, pix.y,  pix.bright);
+		setPixel(mensafb, pix.x, pix.y, pix.bright);
+		encodeToFb(mensafb);
 	}
 
 	return 0;

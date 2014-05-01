@@ -1,8 +1,7 @@
 /*
- * Control WS281X LEDs connected to the LCDIF
+ * Control the Mensadisplay connected to the LCDIF
  *
- * Code taken from the proof-of-concept tool by
- * (C) 2013 Jeroen Domburg (jeroen AT spritesmods.com)
+ * (C) 2014 Daniel Willmann <daniel@totalueberwachung.de>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,63 +32,55 @@
 
 #include <zmq.h>
 
-struct pixel {
-	uint16_t x, y;
-	uint8_t r, g, b;
-} __attribute__((packed));
+#include "common.h"
+
+/*
+ * Layout:
+ *
+ *  Connector on the Individual boards
+ *  ______
+ *  | 1  2|
+ *  |_3  4|
+ *  |5  6|
+ *  |~7  8|
+ *  | 9 10|
+ *  ~~~~~~
+ * 
+ *  Pinout
+ *  Display		iMX233	Function
+ * 
+ * 1:	NC
+ * 2:	SIN/OUT		LCD0-4	Data in for the shift regs
+ * 3:	SCK		LCDCLK	Clock (rising edge)
+ * 4:	GND		GND
+ * 5:	A0		LCD13	Address for the line to drive (LSB)
+ * 6:	A1		LCD14	Possible values: 0-6 for lines 1-7
+ * 7:	A2		LCD15	Address for line MSB
+ * 8:	/G		GND	Global Display /Enable
+ * 9:	VCC		+5V
+ * 10:	RCK		EN	Strobe to latch data into the output
+ * 
+ * 1: Keep /G low
+ * 2: Write data via SIN und SCK into the shift regs
+ * 3: Select row through A0-A2
+ * 4: Update LED outputs with RCK
+ * 5: Goto 2
+ */
 
 static void fade(void *publisher)
 {
-	struct pixel pix1 = { .x = 0, .y = 0, .r = 0, .g = 0, .b = 0 };
-	struct pixel pix2 = { .x = 1, .y = 0, .r = 0, .g = 0, .b = 0 };
-	struct pixel pix3 = { .x = 2, .y = 0, .r = 0, .g = 0, .b = 0 };
-	int state = 0;
+	int i = 0;
+	struct pixel pix;
 	while (1) {
-		switch (state) {
-		case 0:
-			pix1.r++;
-			pix2.g++;
-			pix3.b++;
-			if (pix1.r == 255)
-				state++;
-			break;
-		case 1:
-			pix1.r--;
-			pix1.g++;
-			pix2.g--;
-			pix2.b++;
-			pix3.b--;
-			pix3.r++;
-			if (pix1.g == 255)
-				state++;
-			break;
-		case 2:
-			pix1.g--;
-			pix1.b++;
-			pix2.b--;
-			pix2.r++;
-			pix3.r--;
-			pix3.g++;
-			if (pix1.b == 255)
-				state++;
-			break;
-		case 3:
-			pix1.b--;
-			pix1.r++;
-			pix2.r--;
-			pix2.g++;
-			pix3.g--;
-			pix3.b++;
-			if (pix1.r == 255)
-				state = 1;
-			break;
-		}
-		zmq_send(publisher, &pix1, sizeof(pix1), 0);
-		printf("(%u, %u): r=%02x g=%02x b=%02x\n", pix1.x, pix1.y, pix1.r, pix1.g, pix1.b);
-		//zmq_send(publisher, &pix2, sizeof(pix2), 0);
-		//printf("(%u, %u): r=%02x g=%02x b=%02x\n", pix2.x, pix2.y, pix2.r, pix2.g, pix2.b);
-		//zmq_send(publisher, &pix3, sizeof(pix3), 0);
-		//printf("(%u, %u): r=%02x g=%02x b=%02x\n", pix3.x, pix3.y, pix3.r, pix3.g, pix3.b);
+		pix.x = i / 7;
+		pix.y = i % 7;
+		pix.bright = 0;
+
+		zmq_send(publisher, &pix, sizeof(pix), 0);
+		i = (i + 1) % (7*20);
+		pix.bright = 255;
+		zmq_send(publisher, &pix, sizeof(pix), 0);
+		printf("(%u, %u): bright=%02x\n", pix.x, pix.y, pix.bright);
 		usleep(10000);
 	}
 }

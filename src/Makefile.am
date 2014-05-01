@@ -1,5 +1,5 @@
 bin_PROGRAMS = \
-	mensa-ctrl mensa-serv
+	mensactrl mensaserv
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/include \
@@ -9,15 +9,15 @@ AM_CPPFLAGS = \
 #
 # binary
 #
-ledctrl_SOURCES = \
+mensactrl_SOURCES = \
 	mensactrl.c
 
-ledctrl_LDADD = \
+mensactrl_LDADD = \
 	$(ZMQ_LIBS)
 
-ledserv_SOURCES = \
+mensaserv_SOURCES = \
 	mensaserv.c
 
-ledserv_LDADD = \
+mensaserv_LDADD = \
 	$(ZMQ_LIBS)
 
