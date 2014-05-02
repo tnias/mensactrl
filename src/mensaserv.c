@@ -67,35 +67,39 @@
  * 5: Goto 2
  */
 
-static void fade(void *publisher)
+static void handle(void *sender)
 {
 	int i = 0;
 	struct pixel pix = { .x = 0, .y = 0, .bright = 255 };
 	while (1) {
-		i = (i + 1) % (20*300);
+		i = (i + 1) % (28*300);
 		if (i == 0)
 			pix.bright = 255 - pix.bright;
-		pix.x = i / 20;
-		pix.y = i % 20;
-		zmq_send(publisher, &pix, sizeof(pix), 0);
+		pix.x = i / 28;
+		pix.y = i % 28;
+		zmq_send(sender, &pix, sizeof(pix), 0);
+		zmq_recv(sender, &pix, sizeof(pix), 0);
 		printf("(%u, %u): bright=%02x\n", pix.x, pix.y, pix.bright);
-		usleep(1000);
+		usleep(10000);
 	}
 }
 
 
-int main(void)
+int main(int argc, char *argv[])
 {
 	void *context = zmq_ctx_new ();
-	void *publisher = zmq_socket (context, ZMQ_PUB);
+	void *sender = zmq_socket (context, ZMQ_REQ);
 	int rc;
 
-	rc = zmq_bind (publisher, "tcp://*:5556");
+	if (argc != 2)
+		exit(1);
+
+	rc = zmq_connect (sender, argv[1]);
 	if (rc < 0)
 		perror("zmq_bind");
 
 
-	fade(publisher);
+	handle(sender);
 
 	return 0;
 }
