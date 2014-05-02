@@ -90,44 +90,6 @@ static void blit_area(struct mensa_fb *mensafb, const int col, const int row,
     }
 }
 
-
-void encodeToFb(struct mensa_fb *mensafb)
-{
-	blit_area(mensafb, 0, 0, mensafb->x_res, mensafb->y_res);
-}
-//	int pix, row, cols, idx, fbidx, i, ledrow;
-//	uint16_t pattern;
-//
-//	for (fbidx = 0; fbidx < mensafb->x_res * mensafb->y_res / mensafb->modules; fbidx++) {
-//		cols = mensafb->x_res * 2;
-//
-//		row = fbidx / cols;
-//		ledrow = row;
-//		pix = fbidx % cols;
-//
-//		if (pix / 40 % 2 == 0) {
-//			pix = pix + (pix / 40 * 40);
-//		} else {
-//			pix = pix + (pix / 40 * 40) + 40;
-//			row = row + 7;
-//		}
-//
-//
-//		pattern = 0;
-//		for (i = 0; i < mensafb->modules; i++) {
-//			idx = row * mensafb->x_res + pix + i * mensafb->x_res * 14;
-//			if (mensafb->inputfb[idx] > 0)
-//				pattern |= 1 << i;
-//		}
-//			/* During update of the next line we want to display the
-//			 * content of the last one */
-//			pattern |= (ledrow-1 % 7) << 5;
-//
-//			mensafb->fbmem[fbidx] = pattern;
-//	}
-//}
-
-
 void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
 {
 	int idx = row * mensafb->x_res + col;
@@ -198,7 +160,7 @@ int main(int argc, char *argv[]) {
 		zmq_recv(responder, &pix, sizeof(pix), 0);
 		setPixel(mensafb, pix.x, pix.y, pix.bright);
 		zmq_send(responder, &pix, sizeof(pix), 0);
-		encodeToFb(mensafb);
+		blit_area(mensafb, pix.x, pix.y, 1, 1);
 	}
 
 	return 0;
