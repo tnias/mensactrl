@@ -72,14 +72,19 @@ static void blit_area(struct mensa_fb *mensafb, const int col, const int row,
                 pos += COLS_PER_MODULE;
             }
 
-            pos = pos + vpos*(mensafb->vmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+	    /* Invert order */
+            pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
+
+	    /* Add in row offset */
+            pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+
 
 	    if (mensafb->inputfb[c + r * mensafb->x_res] == 0) {
                 /* clear bit */
-                mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - vmpos));
+                mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
             } else {
                 /* set bit */
-                mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - vmpos));
+                mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
             }
         }
     }
@@ -165,7 +170,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 		exit(1);
 	}
 	for (i = 0; i < mensafb->size ; i++)
-		mensafb->fbmem[i] = (i / (mensafb->x_res * LINES_PER_MODULE))<<5;
+		mensafb->fbmem[i] = ((6 + i / (mensafb->x_res * LINES_PER_MODULE)) % 7)<<5;
 
 	mensafb->hmodules = hmodules;
 	mensafb->vmodules = vmodules;
@@ -176,29 +181,24 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
-	void *subscriber = zmq_socket (context, ZMQ_SUB);
+	void *responder = zmq_socket (context, ZMQ_RSP);
 	int rc;
 
 	if (argc != 2)
 		exit(1);
 
-	rc = zmq_connect (subscriber, "tcp://10.0.0.1:5556");
+	rc = zmq_bind (responder, "tcp://*:5556");
 	if (rc < 0)
-		perror("zmq_connect");
-
-	rc = zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE,
-			NULL, 0);
-	if (rc < 0)
-		perror("zmq_connect");
+		perror("zmq_bind");
 
 	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
 		struct pixel pix;
-		zmq_recv(subscriber, &pix, sizeof(pix), 0);
-		printf("(%u, %u): bright=%02x\n", pix.x, pix.y,  pix.bright);
+		zmq_recv(responder, &pix, sizeof(pix), 0);
 		setPixel(mensafb, pix.x, pix.y, pix.bright);
 		encodeToFb(mensafb);
+		zmq_send(responder, &pix, sizeof(pix), 0);
 	}
 
 	return 0;
