@@ -70,18 +70,16 @@
 static void fade(void *publisher)
 {
 	int i = 0;
-	struct pixel pix;
+	struct pixel pix = { .x = 0, .y = 0, .bright = 255 };
 	while (1) {
-		pix.x = i / 7;
-		pix.y = i % 7;
-		pix.bright = 0;
-
-		zmq_send(publisher, &pix, sizeof(pix), 0);
-		i = (i + 1) % (7*20);
-		pix.bright = 255;
+		i = (i + 1) % (20*300);
+		if (i == 0)
+			pix.bright = 255 - pix.bright;
+		pix.x = i / 20;
+		pix.y = i % 20;
 		zmq_send(publisher, &pix, sizeof(pix), 0);
 		printf("(%u, %u): bright=%02x\n", pix.x, pix.y, pix.bright);
-		usleep(10000);
+		usleep(1000);
 	}
 }
 

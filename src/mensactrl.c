@@ -34,30 +34,93 @@
 
 #include "common.h"
 
+#define ROWS_PER_LINE 7
+#define LINES_PER_MODULE 2
+#define COLS_PER_MODULE 40
+
 struct mensa_fb {
 	int x_res, y_res;
+	int hmodules, vmodules;
 	int fd;
 	uint8_t *inputfb;
 	uint16_t *fbmem;
+	ssize_t size;
 };
 
-void encodeToFb(struct mensa_fb *mensafb) {
-	int pix, row, idx;
-	uint16_t pattern;
+static void blit_area(struct mensa_fb *mensafb, const int col, const int row,
+		const int width, const int height)
+{
+    int r, c;
+    int vmpos, vpos, hmpos, hpos, pos;
 
-	for (row = 0; row < mensafb->y_res; row++) {
-		for (pix=0; pix<mensafb->x_res; pix++) {
-			idx = row*mensafb->x_res + pix;
-			if (mensafb->inputfb[idx] > 0)
-				pattern = 1;
-			else
-				pattern = 0;
-			pattern |= row << 13;
+    if (row < 0 || height < 0 || row + height > mensafb->y_res ||
+		    col < 0 || width < 0 || col + width > mensafb->x_res)
+	    return;
 
-			mensafb->fbmem[idx] = pattern;
-		}
-	}
+    for (r = row; r < row + height; r++) {
+        for (c = col; c < col + width; c++) {
+            /* Calculate module and position inside the module */
+            vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
+            vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
+            hmpos = c/(COLS_PER_MODULE);
+            hpos = c%(COLS_PER_MODULE);
+
+            pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
+
+            if (vpos >= ROWS_PER_LINE) {
+                vpos -= ROWS_PER_LINE;
+                pos += COLS_PER_MODULE;
+            }
+
+            pos = pos + vpos*(mensafb->vmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+
+	    if (mensafb->inputfb[c + r * mensafb->x_res] == 0) {
+                /* clear bit */
+                mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - vmpos));
+            } else {
+                /* set bit */
+                mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - vmpos));
+            }
+        }
+    }
 }
+
+
+void encodeToFb(struct mensa_fb *mensafb)
+{
+	blit_area(mensafb, 0, 0, mensafb->x_res, mensafb->y_res);
+}
+//	int pix, row, cols, idx, fbidx, i, ledrow;
+//	uint16_t pattern;
+//
+//	for (fbidx = 0; fbidx < mensafb->x_res * mensafb->y_res / mensafb->modules; fbidx++) {
+//		cols = mensafb->x_res * 2;
+//
+//		row = fbidx / cols;
+//		ledrow = row;
+//		pix = fbidx % cols;
+//
+//		if (pix / 40 % 2 == 0) {
+//			pix = pix + (pix / 40 * 40);
+//		} else {
+//			pix = pix + (pix / 40 * 40) + 40;
+//			row = row + 7;
+//		}
+//
+//
+//		pattern = 0;
+//		for (i = 0; i < mensafb->modules; i++) {
+//			idx = row * mensafb->x_res + pix + i * mensafb->x_res * 14;
+//			if (mensafb->inputfb[idx] > 0)
+//				pattern |= 1 << i;
+//		}
+//			/* During update of the next line we want to display the
+//			 * content of the last one */
+//			pattern |= (ledrow-1 % 7) << 5;
+//
+//			mensafb->fbmem[fbidx] = pattern;
+//	}
+//}
 
 
 void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
@@ -72,41 +135,40 @@ void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
 	mensafb->inputfb[idx] = bright;
 }
 
-static struct mensa_fb *setup_fb(const char *devname, int x, int y)
+static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules)
 {
 	struct mensa_fb *mensafb = malloc(sizeof(struct mensa_fb));
 	int i;
 
+	mensafb->x_res = COLS_PER_MODULE * hmodules;
+	mensafb->y_res = ROWS_PER_LINE * LINES_PER_MODULE * vmodules;
+	mensafb->size = mensafb->x_res * ROWS_PER_LINE * LINES_PER_MODULE;
 	mensafb->fd = open(devname, O_RDWR);
 	if (mensafb->fd < 0) {
 		perror("opening fb");
 		free(mensafb);
 		exit(1);
 	}
-	mensafb->inputfb = malloc(x*y*3);
+	mensafb->inputfb = malloc(mensafb->x_res * mensafb->y_res);
 	if (!mensafb->inputfb) {
 		free(mensafb);
 		exit(1);
 	}
-	memset(mensafb->inputfb, 0, x*y*3);
+	memset(mensafb->inputfb, 0, mensafb->x_res * mensafb->y_res);
 
-	mensafb->fbmem=mmap(NULL, x*5*24*2, PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
+	mensafb->fbmem=mmap(NULL, mensafb->size * 2,
+			PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
 	if (mensafb->fbmem==NULL) {
 		perror("mmap'ing fb");
 		free(mensafb->inputfb);
 		free(mensafb);
 		exit(1);
 	}
-	for (i = 0; i < x*y*5*24; i++) {
-		/* Init frame buffer bit clock. */
-		if (i % 5 == 0)
-			mensafb->fbmem[i] = 0xffff;
-		if (i % 5 == 4)
-			mensafb->fbmem[i] = 0x00;
-	}
+	for (i = 0; i < mensafb->size ; i++)
+		mensafb->fbmem[i] = (i / (mensafb->x_res * LINES_PER_MODULE))<<5;
 
-	mensafb->x_res = x;
-	mensafb->y_res = y;
+	mensafb->hmodules = hmodules;
+	mensafb->vmodules = vmodules;
 
 	return mensafb;
 }
@@ -129,7 +191,7 @@ int main(int argc, char *argv[]) {
 	if (rc < 0)
 		perror("zmq_connect");
 
-	mensafb = setup_fb(argv[1], 40, 7);
+	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
 		struct pixel pix;
