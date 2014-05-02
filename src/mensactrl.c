@@ -181,7 +181,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
-	void *responder = zmq_socket (context, ZMQ_RSP);
+	void *responder = zmq_socket (context, ZMQ_REP);
 	int rc;
 
 	if (argc != 2)
@@ -197,8 +197,8 @@ int main(int argc, char *argv[]) {
 		struct pixel pix;
 		zmq_recv(responder, &pix, sizeof(pix), 0);
 		setPixel(mensafb, pix.x, pix.y, pix.bright);
-		encodeToFb(mensafb);
 		zmq_send(responder, &pix, sizeof(pix), 0);
+		encodeToFb(mensafb);
 	}
 
 	return 0;
