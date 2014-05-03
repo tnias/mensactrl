@@ -42,8 +42,24 @@ while True:
         pygame.display.update()
         continue
 
-    message = socket.recv()
-    x, y, v = struct.unpack_from('iiB', message)
-    # print("Received request: %r, %r, %r" % (x, y, v))
-    set_pixel(x, y, v)
-    socket.send(b"")
+    messages = socket.recv_multipart()
+    #print("New multimessage")
+    for message in messages:
+        if not message:
+            break
+        cmd, = struct.unpack_from('<B', message)
+        #print repr(message)
+        if cmd == 0: # set pixel
+            cmd, x, y, v = struct.unpack_from('<BiiB', message)
+            #print("Received set pixel: %r, %r, %r, %r" % (cmd, x, y, v))
+            set_pixel(x, y, v)
+        elif cmd == 1: # blit
+            cmd, x, y, w, h = struct.unpack_from('<Biiii', message)
+            #print("Received blit: %r, %r, %r, %r, %r" % (cmd, x, y, w, h))
+            for r in range(h):
+                for c in range(w):
+                    set_pixel(x+c, y+r, ord(message[17+r*w+c]))
+        else:
+            cmd, = struct.unpack_from('<B', message)
+            print("Received unknown: %r" % (cmd,))
+    socket.send(b'')

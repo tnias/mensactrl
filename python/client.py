@@ -21,9 +21,15 @@ socket = context.socket(zmq.REQ)
 socket.connect(SERVER)
 
 def set_pixel(x, y, v):
-  tx = bytearray(9)
-  struct.pack_into('iiB', tx, 0, x, y, v)
-  socket.send(tx)
+  tx = struct.pack('<BiiB', 0, x, y, v)
+  socket.send_multipart([tx, b''])
   rx = socket.recv()
   #print("Received reply %s [%r]" % ((x, y, v), rx))
+
+def set_pixels(pixels):
+  msg = []
+  for x, y, v in pixels:
+    msg.append(struct.pack('<BiiB', 0, x, y, v))
+  socket.send_multipart(msg + [b''])
+  rx = socket.recv()
 

@@ -7,10 +7,12 @@ SIZE = 1
 import time
 
 def rect(x,y,w,h,r,g,b):
+    pixels = []
     for i in xrange(x,x+w):
         for j in xrange(y,y+h):
             #pixel(i,j,r,g,b)
-            client.set_pixel(i, j, r)
+            pixels.append((i, j, r))
+    client.set_pixels(pixels)
 
 def draw(x, y, v):
     rect(x*SIZE, y*SIZE, SIZE, SIZE, 255*v, 255*v, 255*v)
