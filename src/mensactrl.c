@@ -123,7 +123,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	}
 	memset(mensafb->inputfb, 0, mensafb->x_res * mensafb->y_res);
 
-	mensafb->fbmem=mmap(NULL, mensafb->size * 2,
+	mensafb->fbmem=mmap(NULL, mensafb->size * 2 + mensafb->x_res * LINES_PER_MODULE * 2,
 			PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
 	if (mensafb->fbmem==NULL) {
 		perror("mmap'ing fb");
@@ -131,7 +131,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 		free(mensafb);
 		exit(1);
 	}
-	for (i = 0; i < mensafb->size ; i++)
+	for (i = 0; i < mensafb->size + mensafb->x_res * LINES_PER_MODULE; i++)
 		mensafb->fbmem[i] = ((6 + i / (mensafb->x_res * LINES_PER_MODULE)) % 7)<<5;
 
 	mensafb->hmodules = hmodules;
