@@ -167,10 +167,7 @@ int main(int argc, char *argv[]) {
 	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
-		int64_t more;
-		size_t more_size = sizeof(more);
-
-                do {
+                while (1) {
 			zmq_msg_t message;
 			zmq_msg_init (&message);
 			zmq_msg_recv (&message, responder, 0);
@@ -179,10 +176,13 @@ int main(int argc, char *argv[]) {
 				handleCommand(mensafb, (struct packet *)zmq_msg_data(&message));
 			}
 
-			zmq_getsockopt (responder, ZMQ_RCVMORE, &more, &more_size);
+			if (!zmq_msg_more(&message)) {
+				zmq_msg_close(&message);
+				break;
+			}
 
-			zmq_msg_close (&message);
-		} while(more);
+			zmq_msg_close(&message);
+		}
 
 		zmq_send(responder, NULL, 0, 0);
 	}
