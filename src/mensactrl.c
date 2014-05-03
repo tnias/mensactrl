@@ -58,35 +58,35 @@ static void blit_area(struct mensa_fb *mensafb, const int col, const int row,
 	    return;
 
     for (r = row; r < row + height; r++) {
-        for (c = col; c < col + width; c++) {
-            /* Calculate module and position inside the module */
-            vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
-            vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
-            hmpos = c/(COLS_PER_MODULE);
-            hpos = c%(COLS_PER_MODULE);
+	for (c = col; c < col + width; c++) {
+	    /* Calculate module and position inside the module */
+	    vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
+	    vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
+	    hmpos = c/(COLS_PER_MODULE);
+	    hpos = c%(COLS_PER_MODULE);
 
-            pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
+	    pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
 
-            if (vpos >= ROWS_PER_LINE) {
-                vpos -= ROWS_PER_LINE;
-                pos += COLS_PER_MODULE;
-            }
+	    if (vpos >= ROWS_PER_LINE) {
+		vpos -= ROWS_PER_LINE;
+		pos += COLS_PER_MODULE;
+	    }
 
 	    /* Invert order */
-            pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
+	    pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
 
 	    /* Add in row offset */
-            pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+	    pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
 
 
 	    if (mensafb->inputfb[c + r * mensafb->x_res] == 0) {
-                /* clear bit */
-                mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
-            } else {
-                /* set bit */
-                mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
-            }
-        }
+		/* clear bit */
+		mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
+	    } else {
+		/* set bit */
+		mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
+	    }
+	}
     }
 }
 
@@ -140,6 +140,17 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	return mensafb;
 }
 
+void handlePixel(struct mensa_fb *mensafb, struct pixel *pix) {
+	setPixel(mensafb, pix->x, pix->y, pix->bright);
+	blit_area(mensafb, pix->x, pix->y, 1, 1);
+}
+
+void handleCommand(struct mensa_fb *mensafb, struct packet *p) {
+	switch(p->cmd) {
+		case CMD_PIXEL: handlePixel(mensafb, &p->pixel); break;
+	}
+}
+
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
@@ -156,11 +167,24 @@ int main(int argc, char *argv[]) {
 	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
-		struct pixel pix;
-		zmq_recv(responder, &pix, sizeof(pix), 0);
-		setPixel(mensafb, pix.x, pix.y, pix.bright);
-		zmq_send(responder, &pix, sizeof(pix), 0);
-		blit_area(mensafb, pix.x, pix.y, 1, 1);
+		int64_t more;
+		size_t more_size = sizeof(more);
+
+                do {
+			zmq_msg_t message;
+			zmq_msg_init (&message);
+			zmq_msg_recv (&message, responder, 0);
+
+			if(zmq_msg_size(&message)) {
+				handleCommand(mensafb, (struct packet *)zmq_msg_data(&message));
+			}
+
+			zmq_getsockopt (responder, ZMQ_RCVMORE, &more, &more_size);
+
+			zmq_msg_close (&message);
+		} while(more);
+
+		zmq_send(responder, NULL, 0, 0);
 	}
 
 	return 0;
