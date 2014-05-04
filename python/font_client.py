@@ -7,16 +7,36 @@ pygame.init()
 
 screen = pygame.Surface((client.WIDTH, client.HEIGHT), depth=8)
 
+prev_screen = None
+
 def send(screen):
+    global prev_screen
     w = screen.get_width()
     h = screen.get_height()
     pxarray = pygame.PixelArray(screen)
+    if prev_screen:
+        prev_pxarray = pygame.PixelArray(prev_screen)
+        xs = set()
+        ys = set()
+        for y in range(h):
+            for x in range(w):
+                if not pxarray[x][y] == prev_pxarray[x][y]:
+                    xs.add(x)
+                    ys.add(y)
+    else:
+        xs = set((0, client.WIDTH-1))
+        ys = set((0, client.HEIGHT-1))
+
+    if not xs:
+        return
+    prev_screen = screen.copy()
+
     pixels = []
-    for y in range(h):
-        for x in range(w):
+    for y in range(min(ys), max(ys)+1):
+        for x in range(min(xs), max(xs)+1):
             pixels.append(pxarray[x][y])
     del pxarray
-    client.blit(0, 0, w, h, pixels)
+    client.blit(min(xs), min(ys), max(xs)-min(xs)+1, max(ys)-min(ys)+1, pixels)
 
 prev_mx = None
 font = None
