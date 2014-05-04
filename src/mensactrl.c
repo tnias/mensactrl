@@ -163,8 +163,8 @@ int copyArea(struct mensa_fb *mensafb, int x, int y, int w, int h, uint8_t *data
 		return -1;
 	}
 
-	for (row = y; row < y + h; row++) {
-		int idx = row * mensafb->x_res + x;
+	for (row = 0; row < h; row++) {
+		int idx = (row + y) * mensafb->x_res + x;
 		memcpy(&mensafb->inputfb[idx], &data[row*w], w);
 	}
 	return 0;
