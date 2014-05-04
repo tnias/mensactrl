@@ -21,6 +21,9 @@ socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5570")
 
 def set_pixel(x, y, v):
+    # 1 bit per pixel
+    if v:
+        v = 255
     v = v/255.0
     row = y / 7
     if row in [0, 1, 2, 9]:
