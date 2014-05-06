@@ -2,6 +2,7 @@
 
 import sys, client
 
+SERVER = "tcp://localhost:5570"
 XOFF = 0
 YOFF = 0
 TEXT = "Hello World!"
