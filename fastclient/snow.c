@@ -90,5 +90,6 @@ int main (void) {
   zmq_close(requester);
 
   zmq_ctx_destroy(context);
+
   return 0;
 }
