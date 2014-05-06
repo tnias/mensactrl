@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import bitmapfont
 
 SPLIT_N = 1
 SPLIT_I = 0
@@ -34,6 +35,10 @@ context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect(SERVER)
 
+################################################################################
+# RAW PIXEL HANDLING
+################################################################################
+
 def set_pixel(x, y, v):
   x += WOFFSET
   tx = struct.pack('<BiiB', 0, x, y, v)
@@ -56,3 +61,30 @@ def blit(x, y, w, h, pixels):
   socket.send_multipart([msg, b''])
   rx = socket.recv()
 
+################################################################################
+# TEXT RENDERING WITH BITMAP FONT
+################################################################################
+
+# return array of size PWIDTH * PHEIGHT (indexed by row, then column)
+def char_to_pixel_segment(c):
+    pixels = [0] * PWIDTH * PHEIGHT
+    if(c in bitmapfont.FONT.keys()):
+        for x in xrange(0, PWIDTH):
+            for y in xrange(0, PHEIGHT):
+                pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
+                pixels[y * PWIDTH + x] = pix
+    return pixels
+
+# write string, starting at segment x,y. no boundary checks are done, text may
+# be clipped at the border, in this case False is returned.
+def write(x, y, string):
+    for c in string:
+        blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, char_to_pixel_segment(c))
+        x += 1
+        if(x > NUM_SEG_X):
+            return False
+
+# write text at beginning of line and clear remaining horizontal space
+def writeline(y, string):
+    write(0, y, string)
+    write(len(string), y, ' ' * (NUM_SEG_X-len(string)))
