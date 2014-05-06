@@ -17,7 +17,7 @@ struct fill {
 	int x, y;
 	int width, height;
 	uint8_t bright;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 struct packet {
 	uint8_t cmd;
