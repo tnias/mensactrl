@@ -65,6 +65,32 @@ def blit(x, y, w, h, pixels):
 # TEXT RENDERING WITH BITMAP FONT
 ################################################################################
 
+# screen buffer used for text handling
+SCREENBUFFER = [0] * WIDTH * HEIGHT
+
+# blit to screen buffer, also updates screen
+def screenbuf_blit(x, y, w, h, pixels):
+    blit(x, y, w, h, pixels)
+    assert w*h == len(pixels)
+    for dy in range(0, h):
+        for dx in range(0, w):
+            if(y+dy >= HEIGHT or x+dx >= WIDTH):
+                return
+            pix = pixels[dy * w + dx];
+            SCREENBUFFER[(y+dy) * WIDTH + (x+dx)] = pix
+
+# scroll the screen buffer up y pixels, also updates screen
+def screenbuf_scroll(y):
+    buf = SCREENBUFFER
+    for dy in range(y, HEIGHT):
+        for x in range(0, WIDTH):
+            SCREENBUFFER[(dy-y) * WIDTH + x] = buf[dy * WIDTH + x]
+    screenbuf_render()
+
+# draw screen buffer to screen
+def screenbuf_render():
+    blit(0, 0, WIDTH, HEIGHT, SCREENBUFFER)
+
 # return array of size PWIDTH * PHEIGHT (indexed by row, then column)
 def char_to_pixel_segment(c):
     pixels = [0] * PWIDTH * PHEIGHT
@@ -79,7 +105,8 @@ def char_to_pixel_segment(c):
 # be clipped at the border, in this case False is returned.
 def write(x, y, string):
     for c in string:
-        blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, char_to_pixel_segment(c))
+        pixels = char_to_pixel_segment(c)
+        screenbuf_blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, pixels)
         x += 1
         if(x > NUM_SEG_X):
             return False
@@ -88,3 +115,9 @@ def write(x, y, string):
 def writeline(y, string):
     write(0, y, string)
     write(len(string), y, ' ' * (NUM_SEG_X-len(string)))
+
+# scroll the content y lines up and clear last line
+def scrollline(y = 1):
+    screenbuf_scroll(y*PHEIGHT)
+    screenbuf_blit(0, (NUM_SEG_Y-1) * PHEIGHT, WIDTH, PHEIGHT,
+        [0] * WIDTH * PHEIGHT)
