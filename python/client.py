@@ -111,10 +111,21 @@ def write(x, y, string):
         if(x > NUM_SEG_X):
             return False
 
-# write text at beginning of line and clear remaining horizontal space
-def writeline(y, string):
-    write(0, y, string)
-    write(len(string), y, ' ' * (NUM_SEG_X-len(string)))
+# write line to screen as if on a terminal, scroll up if neccessary
+cur_line = -1
+def writeline(string):
+    global cur_line
+    cur_line += 1
+    if(cur_line >= NUM_SEG_Y):
+        scrollline()
+        cur_line -= 1
+    write(0, cur_line, string)
+
+    # clear remaining row
+    clear_chars = (NUM_SEG_X-len(string))
+    screenbuf_blit(len(string) * PWIDTH, cur_line * PHEIGHT,
+        clear_chars * PWIDTH, PHEIGHT,
+        [0] * clear_chars * PWIDTH * PHEIGHT)
 
 # scroll the content y lines up and clear last line
 def scrollline(y = 1):
