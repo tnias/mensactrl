@@ -46,7 +46,6 @@ while True:
     YOFF = 7
     submissions = r.get_subreddit(i).get_hot(limit=10)
     subs = [str(x) for x in submissions]
-    print(subs)
     for i in range(1,10):
       votes,title = subs[i].split(' :: ',1)
       TEXT = '%s :: %s' % (votes.rjust(5),title)
