@@ -35,6 +35,9 @@ reddit = ["opensource"
          ,"hackerspaces"
          ,"shittyaskscience"
          ,"showerthoughts"
+         ,"explainlikeimcalvin"
+         ,"nosleep"
+         ,"pettyrevenge"
          ,"all"]
 
 while True:
