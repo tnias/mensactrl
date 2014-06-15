@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 import os
 import bitmapfont
@@ -23,7 +23,7 @@ HEIGHT = PHEIGHT*NUM_SEG_Y
 
 import sys
 
-SERVER = "tcp://localhost:5570"
+SERVER = "tcp://mensadisplay:5556"
 
 if len(sys.argv) >= 2:
   SERVER = sys.argv[1]
