@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # 10x48x5x7 Pixel
 
-import sys, client, praw
+import client, praw
 from time import sleep
 
 SERVER = "tcp://localhost:5570"
@@ -30,4 +30,4 @@ while True:
       votes,title = subs[i].split(' :: ',1)
       TEXT = '%s :: %s' % (votes.rjust(5),title)
       client.writeline(TEXT)
-    sleep(30)
+      sleep(10)
