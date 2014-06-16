@@ -7,7 +7,7 @@ from time import sleep
 SERVER = "tcp://localhost:5570"
 XOFF = 0
 YOFF = 0
-TEXT = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern"
+TEXT = ""
 
 pygame.init()
 
@@ -44,7 +44,7 @@ while True:
     clear()
     render("reddit.com/r/" + i,0,0)
     YOFF = 7
-    submissions = r.get_subreddit(i).get_hot(limit=10)
+    submissions = r.get_subreddit(i).get_hot(limit=9)
     subs = [str(x) for x in submissions]
     for i in range(1,10):
       votes,title = subs[i].split(' :: ',1)
