@@ -18,7 +18,6 @@ reddit = ["opensource"
          ,"shittyaskscience"
          ,"showerthoughts"
          ,"explainlikeimcalvin"
-         ,"nosleep"
          ,"pettyrevenge"
          ,"all"]
 
