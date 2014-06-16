@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # 10x48x5x7 Pixel
 
-import sys, client, praw, pygame
+import sys, client, praw
 from time import sleep
 
 SERVER = "tcp://localhost:5570"
@@ -9,24 +9,7 @@ XOFF = 0
 YOFF = 0
 TEXT = ""
 
-pygame.init()
-
-def clear():
-    pixels = [0] * client.HEIGHT * client.WIDTH
-    client.blit(0,0,client.WIDTH,client.HEIGHT,pixels)
-
-def render(TEXT,XOFF=0,YOFF=0):
-    font = pygame.font.Font("/usr/share/fonts/misc/5x7.pcf.gz", 7)
-    text = font.render(TEXT, True, (255, 255, 255), (0, 0, 0))
-    pxarray = pygame.PixelArray(text)
-    pixels = []
-    for x in range(text.get_width()):
-        for y in range(text.get_height()):
-            pixels.append((XOFF+x, YOFF+y, pxarray[x][y]))
-    del pxarray
-    client.set_pixels(pixels)
-
-r = praw.Reddit(user_agent='my_cool_application')
+r = praw.Reddit(user_agent='Stratum0 Braunschweig Mensadisplay Parser')
 reddit = ["opensource"
          ,"linux"
          ,"netsec"
@@ -41,14 +24,11 @@ reddit = ["opensource"
 
 while True:
   for i in reddit:
-    clear()
-    render("reddit.com/r/" + i,0,0)
-    YOFF = 7
+    client.writeline("reddit.com/r/" + i)
     submissions = r.get_subreddit(i).get_hot(limit=9)
     subs = [str(x) for x in submissions]
-    for i in range(1,10):
+    for i in range(0,9):
       votes,title = subs[i].split(' :: ',1)
       TEXT = '%s :: %s' % (votes.rjust(5),title)
-      render(TEXT,0,YOFF)
-      YOFF += 7
+      client.writeline(TEXT)
     sleep(30)
