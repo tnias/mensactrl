@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # 10x48x5x7 Pixel
 
-import sys, client, praw
+import client, praw
 from time import sleep
 
 SERVER = "tcp://localhost:5570"
@@ -25,9 +25,10 @@ while True:
   for i in reddit:
     client.writeline("reddit.com/r/" + i)
     submissions = r.get_subreddit(i).get_hot(limit=9)
-    subs = [str(x) for x in submissions]
+    subs = [unicode(x) for x in submissions]
     for i in range(0,9):
       votes,title = subs[i].split(' :: ',1)
       TEXT = '%s :: %s' % (votes.rjust(5),title)
+      print(repr(TEXT))
       client.writeline(TEXT)
-    sleep(30)
+      sleep(10)
