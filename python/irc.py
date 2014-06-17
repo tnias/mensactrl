@@ -15,7 +15,7 @@ def printline(nick, msg, me=False):
   while msg:
     client.writeline("%s%s" % (nick, msg[:96-len(nick)]))
     nick = " " * len(nick)
-    msg = msg[96-len(nick):]
+    msg = msg[96-len(nick):].strip()
 
 HOST="irc.freenode.net"
 PORT=6667
