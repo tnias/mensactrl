@@ -104,7 +104,7 @@ def char_to_pixel_segment(c):
 # write string, starting at segment x,y. no boundary checks are done, text may
 # be clipped at the border, in this case False is returned.
 def write(x, y, string):
-    for c in string:
+    for c in unicode(string.decode("utf-8").strip("\r\n\0\t")):
         pixels = char_to_pixel_segment(c)
         screenbuf_blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, pixels)
         x += 1
