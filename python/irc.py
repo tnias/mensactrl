@@ -8,8 +8,7 @@ import client
 def printline(nick, msg, me=False):
   l = len(nick) + 3
   if me:
-    l = len(nick) + 1
-    nick += " "
+    nick = "* %s " % nick
   else:
     nick = "<%s> " % nick
   while msg:
