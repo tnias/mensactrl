@@ -96,7 +96,7 @@ def screenbuf_render():
 def char_to_pixel_segment(c):
     pixels = [0] * PWIDTH * PHEIGHT
 
-    if(unicode(c) not in bitmapfont.FONT.keys()):
+    if(c not in bitmapfont.FONT.keys()):
         c = u"☐";
 
     for x in xrange(0, PWIDTH):
@@ -108,7 +108,7 @@ def char_to_pixel_segment(c):
 # write string, starting at segment x,y. no boundary checks are done, text may
 # be clipped at the border, in this case False is returned.
 def write(x, y, string):
-    for c in unicode(string.decode("utf-8").strip("\r\n\0\t")):
+    for c in string.strip("\r\n\0\t"):
         pixels = char_to_pixel_segment(c)
         screenbuf_blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, pixels)
         x += 1
