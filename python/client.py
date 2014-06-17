@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
 
 import os
 import bitmapfont
@@ -94,11 +95,14 @@ def screenbuf_render():
 # return array of size PWIDTH * PHEIGHT (indexed by row, then column)
 def char_to_pixel_segment(c):
     pixels = [0] * PWIDTH * PHEIGHT
-    if(c in bitmapfont.FONT.keys()):
-        for x in xrange(0, PWIDTH):
-            for y in xrange(0, PHEIGHT):
-                pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
-                pixels[y * PWIDTH + x] = pix
+
+    if(unicode(c) not in bitmapfont.FONT.keys()):
+        c = u"☐";
+
+    for x in xrange(0, PWIDTH):
+        for y in xrange(0, PHEIGHT):
+            pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
+            pixels[y * PWIDTH + x] = pix
     return pixels
 
 # write string, starting at segment x,y. no boundary checks are done, text may
