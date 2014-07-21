@@ -38,7 +38,7 @@
 #define LINES_PER_MODULE 2
 #define COLS_PER_MODULE 40
 
-#define POWER_TIMEOUT 10000 /* milliseconds */
+#define POWER_TIMEOUT 180000 /* milliseconds */
 #define POWER_GPIO_PATH "/sys/class/gpio/gpio91/value"
 
 struct mensa_fb {
