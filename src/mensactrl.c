@@ -38,6 +38,9 @@
 #define LINES_PER_MODULE 2
 #define COLS_PER_MODULE 40
 
+#define POWER_TIMEOUT 10000 /* milliseconds */
+#define POWER_GPIO_PATH "/sys/class/gpio/gpio91/value"
+
 struct mensa_fb {
 	int x_res, y_res;
 	int hmodules, vmodules;
@@ -48,6 +51,8 @@ struct mensa_fb {
 };
 
 int verbose = 0;
+
+int power = 0;
 
 static int is_inbounds(struct mensa_fb *mensafb, int x, int y, int width, int height)
 {
@@ -232,14 +237,38 @@ void handleCommand(struct mensa_fb *mensafb, struct packet *p, size_t len) {
 		printf("Error handling command 0x%02x\n", p->cmd);
 }
 
+int setPower(int enabled) {
+	int fd;
+
+	if (power == enabled)
+	    return 0;
+
+	fd = open(POWER_GPIO_PATH, O_WRONLY);
+	if  (fd < 0) {
+		perror("open power gpio");
+		return fd;
+	}
+
+	write(fd, enabled ? "1" : "0", 1);
+
+	power = enabled;
+
+	close(fd);
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
 	void *responder = zmq_socket (context, ZMQ_REP);
-	int rc;
+	int rc, timeout = POWER_TIMEOUT;
 
 	if (argc != 2)
 		exit(1);
+
+	rc = zmq_setsockopt (responder, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
+	if (rc < 0)
+		perror("zmq_setsockopt");
 
 	rc = zmq_bind (responder, "tcp://*:5556");
 	if (rc < 0)
@@ -251,9 +280,12 @@ int main(int argc, char *argv[]) {
                 while (1) {
 			zmq_msg_t message;
 			zmq_msg_init (&message);
-			zmq_msg_recv (&message, responder, 0);
+			rc = zmq_msg_recv (&message, responder, 0);
+			if (rc < 0 && errno == EAGAIN)
+				setPower(0);
 
 			if(zmq_msg_size(&message)) {
+				setPower(1);
 				handleCommand(mensafb, (struct packet *)zmq_msg_data(&message), zmq_msg_size(&message));
 			}
 
