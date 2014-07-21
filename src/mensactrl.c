@@ -159,7 +159,7 @@ int copyArea(struct mensa_fb *mensafb, int x, int y, int w, int h, uint8_t *data
 
 	if (len != (size_t)w*h) {
 		if (verbose)
-			printf("Blit size mismatch: want %i, have %i\n", w*h, len);
+			printf("Blit size mismatch: want %i, have %zi\n", w*h, len);
 		return -1;
 	}
 
