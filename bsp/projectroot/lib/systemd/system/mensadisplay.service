@@ -1,0 +1,9 @@
+[Unit]
+Description=Mensadisplay server
+
+[Service]
+ExecStart=/usr/bin/mensactrl.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

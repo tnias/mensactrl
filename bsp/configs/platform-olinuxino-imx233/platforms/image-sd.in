@@ -1,0 +1,12 @@
+## SECTION=image2
+
+config IMAGE_SD
+	tristate
+	select HOST_GENIMAGE
+	select IMAGE_ROOT_EXT
+	select IMAGE_VFAT_TOOLS
+	select KERNEL
+	select U_BOOT
+	prompt "Generate images/sd.hdimg"
+	help
+	  FIXME
