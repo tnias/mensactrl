@@ -1,0 +1,25 @@
+From: Daniel Willmann <daniel@totalueberwachung.de>
+Date: Thu, 24 Jul 2014 23:43:02 +0200
+Subject: [PATCH] Reduce {x,y}minres form 120 to 1
+
+For the LED display we only need to control 8 (7+1) rows so increase
+refresh rate by reducing the minimum resolution.
+---
+ drivers/video/fbdev/mxsfb.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/fbdev/mxsfb.c b/drivers/video/fbdev/mxsfb.c
+index accf48a..8f7bab1 100644
+--- a/drivers/video/fbdev/mxsfb.c
++++ b/drivers/video/fbdev/mxsfb.c
+@@ -136,8 +136,8 @@
+ #define DEBUG0_HSYNC			(1 < 26)
+ #define DEBUG0_VSYNC			(1 < 25)
+ 
+-#define MIN_XRES			120
+-#define MIN_YRES			120
++#define MIN_XRES			1
++#define MIN_YRES			1
+ 
+ #define RED 0
+ #define GREEN 1
