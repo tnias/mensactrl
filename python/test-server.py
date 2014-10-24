@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 PWIDTH = 5
 WIDTH = PWIDTH*96

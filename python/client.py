@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
 
 import os
 import bitmapfont
@@ -23,7 +24,7 @@ HEIGHT = PHEIGHT*NUM_SEG_Y
 
 import sys
 
-SERVER = "tcp://localhost:5570"
+SERVER = "tcp://mensadisplay:5556"
 
 if len(sys.argv) >= 2:
   SERVER = sys.argv[1]
@@ -94,38 +95,58 @@ def screenbuf_render():
 # return array of size PWIDTH * PHEIGHT (indexed by row, then column)
 def char_to_pixel_segment(c):
     pixels = [0] * PWIDTH * PHEIGHT
-    if(c in bitmapfont.FONT.keys()):
-        for x in xrange(0, PWIDTH):
-            for y in xrange(0, PHEIGHT):
-                pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
-                pixels[y * PWIDTH + x] = pix
+
+    if(c not in bitmapfont.FONT.keys()):
+        c = u"☐";
+
+    for x in xrange(0, PWIDTH):
+        for y in xrange(0, PHEIGHT):
+            pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
+            pixels[y * PWIDTH + x] = pix
     return pixels
 
-# write string, starting at segment x,y. no boundary checks are done, text may
-# be clipped at the border, in this case False is returned.
+# write string, starting at segment x,y. Tabs are expanded to 8 spaces, new
+# lines always begin at the given x position. No boundary checks are done, text
+# may be clipped at the border, in this case the function returns.
+# This function returns a tuple (x,y,success) where (x,y) gives the position of
+# the last character written, and success is set to False if the function
+# returned because of clipped text.
 def write(x, y, string):
+    orig_x = x
+    string = string.replace("\t", " "*8)
     for c in string:
-        pixels = char_to_pixel_segment(c)
-        screenbuf_blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, pixels)
-        x += 1
+        if c == "\n":
+            y += 1
+            x = orig_x
+        if ord(c) < 0x1f:
+            pass
+        else:
+            pixels = char_to_pixel_segment(c)
+            screenbuf_blit(x*PWIDTH, y*PHEIGHT, PWIDTH, PHEIGHT, pixels)
+            x += 1
+
         if(x > NUM_SEG_X):
-            return False
+            return (x,y,False)
+
+    return (x,y,True)
 
 # write line to screen as if on a terminal, scroll up if neccessary
-cur_line = -1
+cur_line = 0
 def writeline(string):
     global cur_line
-    cur_line += 1
     if(cur_line >= NUM_SEG_Y):
         scrollline()
         cur_line -= 1
-    write(0, cur_line, string)
+    (new_x, new_y, success) = write(0, cur_line, string.strip("\r\n"))
+    cur_line = new_y
 
     # clear remaining row
-    clear_chars = (NUM_SEG_X-len(string))
-    screenbuf_blit(len(string) * PWIDTH, cur_line * PHEIGHT,
+    clear_chars = (NUM_SEG_X-new_x)
+    screenbuf_blit(new_x * PWIDTH, cur_line * PHEIGHT,
         clear_chars * PWIDTH, PHEIGHT,
         [0] * clear_chars * PWIDTH * PHEIGHT)
+
+    cur_line += 1
 
 # scroll the content y lines up and clear last line
 def scrollline(y = 1):
