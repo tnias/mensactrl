@@ -33,10 +33,12 @@
 #include <zmq.h>
 
 #include "common.h"
+#include "fb.h"
 
 #define ROWS_PER_LINE 7
 #define LINES_PER_MODULE 2
 #define COLS_PER_MODULE 40
+#define BRIGHT_LEVELS 17
 
 #define POWER_TIMEOUT 180000 /* milliseconds */
 #define POWER_GPIO_PATH "/sys/class/gpio/gpio91/value"
@@ -65,42 +67,48 @@ static int is_inbounds(struct mensa_fb *mensafb, int x, int y, int width, int he
 static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 		const int width, const int height)
 {
-    int r, c;
+    int r, c, b;
     int vmpos, vpos, hmpos, hpos, pos;
+    int offs;
+    uint8_t thresh;
 
     if (!is_inbounds(mensafb, col, row, width, height))
 	    return -1;
 
-    for (r = row; r < row + height; r++) {
-	for (c = col; c < col + width; c++) {
-	    /* Calculate module and position inside the module */
-	    vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
-	    vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
-	    hmpos = c/(COLS_PER_MODULE);
-	    hpos = c%(COLS_PER_MODULE);
+    for (b = 0; b < BRIGHT_LEVELS-1; b++) {
+      offs = b * LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE;
+      for (r = row; r < row + height; r++) {
+        for (c = col; c < col + width; c++) {
+          /* Calculate module and position inside the module */
+          vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
+	  vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
+	  hmpos = c/(COLS_PER_MODULE);
+	  hpos = c%(COLS_PER_MODULE);
 
-	    pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
+	  pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
 
-	    if (vpos >= ROWS_PER_LINE) {
-		vpos -= ROWS_PER_LINE;
-		pos += COLS_PER_MODULE;
-	    }
+	  if (vpos >= ROWS_PER_LINE) {
+            vpos -= ROWS_PER_LINE;
+	    pos += COLS_PER_MODULE;
+	  }
 
-	    /* Invert order */
-	    pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
+	  /* Invert order */
+	  pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
 
-	    /* Add in row offset */
-	    pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+	  /* Add in row offset */
+	  pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
 
 
-	    if (mensafb->inputfb[c + r * mensafb->x_res] == 0) {
-		/* clear bit */
-		mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
-	    } else {
-		/* set bit */
-		mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
-	    }
+	  thresh = 256 * b / BRIGHT_LEVELS;
+	  if (mensafb->inputfb[c + r * mensafb->x_res] < thresh) {
+            /* clear bit */
+            mensafb->fbmem[offs + pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
+	  } else {
+            /* set bit */
+            mensafb->fbmem[offs + pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
+	  }
 	}
+      }
     }
     return 0;
 }
@@ -118,17 +126,40 @@ void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
 static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules)
 {
 	struct mensa_fb *mensafb = malloc(sizeof(struct mensa_fb));
+	struct fb_var_screeninfo vsinfo;
 	int i;
 
 	mensafb->x_res = COLS_PER_MODULE * hmodules;
 	mensafb->y_res = ROWS_PER_LINE * LINES_PER_MODULE * vmodules;
 	mensafb->size = mensafb->x_res * ROWS_PER_LINE * LINES_PER_MODULE;
 	mensafb->fd = open(devname, O_RDWR);
+
 	if (mensafb->fd < 0) {
 		perror("opening fb");
 		free(mensafb);
 		exit(1);
 	}
+
+	if (ioctl(mensafb->fd, FBIOGET_VSCREENINFO, &vsinfo)) {
+		perror("could not get var screen info");
+		free(mensafb);
+		exit(1);
+	}
+
+	vsinfo.xres = 960;
+	vsinfo.xres_virtual = vsinfo.xres;
+	vsinfo.yres = 7*(BRIGHT_LEVELS-1) + 1;
+	vsinfo.yres_virtual = vsinfo.yres;
+
+	vsinfo.pixclock = 125000;
+
+	if (ioctl(mensafb->fd, FBIOPUT_VSCREENINFO, &vsinfo)) {
+		perror("could not set var screen info");
+		free(mensafb);
+		exit(1);
+	}
+
+
 	mensafb->inputfb = malloc(mensafb->x_res * mensafb->y_res);
 	if (!mensafb->inputfb) {
 		free(mensafb);
@@ -136,7 +167,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	}
 	memset(mensafb->inputfb, 0, mensafb->x_res * mensafb->y_res);
 
-	mensafb->fbmem=mmap(NULL, mensafb->size * 2 + mensafb->x_res * LINES_PER_MODULE * 2,
+	mensafb->fbmem=mmap(NULL, mensafb->size * 2 * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE * 2,
 			PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
 	if (mensafb->fbmem==NULL) {
 		perror("mmap'ing fb");
@@ -144,7 +175,8 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 		free(mensafb);
 		exit(1);
 	}
-	for (i = 0; i < mensafb->size + mensafb->x_res * LINES_PER_MODULE; i++)
+	memset(mensafb->fbmem, 0, mensafb->size * 2 * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE * 2);
+	for (i = 0; i < mensafb->size * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE; i++)
 		mensafb->fbmem[i] = ((6 + i / (mensafb->x_res * LINES_PER_MODULE)) % 7)<<5;
 
 	mensafb->hmodules = hmodules;
@@ -238,7 +270,7 @@ void handleCommand(struct mensa_fb *mensafb, struct packet *p, size_t len) {
 }
 
 int setPower(int enabled) {
-	int fd;
+	int fd, ret;
 
 	if (power == enabled)
 	    return 0;
@@ -249,7 +281,12 @@ int setPower(int enabled) {
 		return fd;
 	}
 
-	write(fd, enabled ? "1" : "0", 1);
+	ret = write(fd, enabled ? "1" : "0", 1);
+	if (ret != 1) {
+		perror("Could not write to fd");
+		return ret;
+	}
+
 
 	power = enabled;
 
