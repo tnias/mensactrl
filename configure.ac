@@ -9,7 +9,7 @@ AC_CANONICAL_HOST
 
 AM_MAINTAINER_MODE
 
-CFLAGS="${CFLAGS} -std=gnu11 -W -Wall"
+CFLAGS="${CFLAGS} -std=gnu11 -W -Wall -O3"
 
 #
 # libtool library versioning stuff
