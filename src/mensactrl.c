@@ -79,8 +79,9 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
     if (!is_inbounds(mensafb, col, row, width, height))
 	    return -1;
 
+    offs = 0;
     for (b = 0; b < BRIGHT_LEVELS-1; b++) {
-      offs = b * LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE;
+      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
       for (r = row; r < row + height; r++) {
         for (c = col; c < col + width; c++) {
           /* Calculate module and position inside the module */
