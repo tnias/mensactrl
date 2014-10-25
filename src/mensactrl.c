@@ -103,15 +103,14 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 	  /* Add in row offset */
 	  pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
 
-
-	  thresh = 256 * b / BRIGHT_LEVELS;
-	  if (mensafb->inputfb[c + r * mensafb->x_res] < thresh) {
+          thresh = 256 * (b+1) / BRIGHT_LEVELS;
+          if (mensafb->inputfb[c + r * mensafb->x_res] < thresh) {
             /* clear bit */
             mensafb->fbmem[offs + pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
-	  } else {
+          } else {
             /* set bit */
             mensafb->fbmem[offs + pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
-	  }
+          }
 	}
       }
     }
