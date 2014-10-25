@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
 #include <linux/fb.h>
@@ -29,6 +30,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <math.h>
+#include <time.h>
 
 #include <zmq.h>
 
@@ -42,6 +44,8 @@
 
 #define POWER_TIMEOUT 180000 /* milliseconds */
 #define POWER_GPIO_PATH "/sys/class/gpio/gpio91/value"
+
+#define BENCH_LOOPS 100
 
 struct mensa_fb {
 	int x_res, y_res;
@@ -141,9 +145,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	}
 
 	if (ioctl(mensafb->fd, FBIOGET_VSCREENINFO, &vsinfo)) {
-		perror("could not get var screen info");
-		free(mensafb);
-		exit(1);
+		perror("could not get var screen info, ignoring");
 	}
 
 	vsinfo.xres = 960;
@@ -154,11 +156,8 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	vsinfo.pixclock = 125000;
 
 	if (ioctl(mensafb->fd, FBIOPUT_VSCREENINFO, &vsinfo)) {
-		perror("could not set var screen info");
-		free(mensafb);
-		exit(1);
+		perror("could not set var screen info, ignoring");
 	}
-
 
 	mensafb->inputfb = malloc(mensafb->x_res * mensafb->y_res);
 	if (!mensafb->inputfb) {
@@ -294,14 +293,45 @@ int setPower(int enabled) {
 	return 0;
 }
 
+void runBenchmark(struct mensa_fb *mensafb) {
+	clock_t t = clock();
+	for (int i = 0; i < BENCH_LOOPS; i++) {
+		blit_area(mensafb, 0, 0, mensafb->x_res, mensafb->y_res);
+	}
+	t = clock() - t;
+	printf("%fus / blit_area\n", (float)t/100.0);
+}
+
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
 	void *responder = zmq_socket (context, ZMQ_REP);
 	int rc, timeout = POWER_TIMEOUT;
+	int opt;
+	bool benchmark = false;
 
-	if (argc != 2)
-		exit(1);
+	while ((opt = getopt(argc, argv, "b")) != -1) {
+		switch (opt) {
+		case 'b':
+			benchmark = true;
+			break;
+		default:
+			fprintf(stderr, "Usage: %s [-b] framebuffer\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "missing framebuffer argument\n");
+		exit(EXIT_FAILURE);
+	}
+
+	mensafb = setup_fb(argv[optind], 12, 5);
+
+	if (benchmark) {
+		runBenchmark(mensafb);
+		exit(0);
+	}
 
 	rc = zmq_setsockopt (responder, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
 	if (rc < 0)
@@ -310,8 +340,6 @@ int main(int argc, char *argv[]) {
 	rc = zmq_bind (responder, "tcp://*:5556");
 	if (rc < 0)
 		perror("zmq_bind");
-
-	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
                 while (1) {
