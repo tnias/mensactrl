@@ -81,7 +81,7 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 
     offs = 0;
     for (b = 0; b < BRIGHT_LEVELS-1; b++) {
-      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
+      thresh = 255 * (b+1) / BRIGHT_LEVELS;
       for (r = row; r < row + height; r++) {
         for (c = col; c < col + width; c++) {
           /* Calculate module and position inside the module */
@@ -103,7 +103,6 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 	  /* Add in row offset */
 	  pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
 
-          thresh = 256 * (b+1) / BRIGHT_LEVELS;
           if (mensafb->inputfb[c + r * mensafb->x_res] < thresh) {
             /* clear bit */
             mensafb->fbmem[offs + pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
@@ -113,6 +112,7 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
           }
 	}
       }
+      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
     }
     return 0;
 }
