@@ -68,6 +68,37 @@ static int is_inbounds(struct mensa_fb *mensafb, int x, int y, int width, int he
     return 1;
 }
 
+static int blit_fullscreen(struct mensa_fb *mensafb)
+{
+    int r, c, b, i, l;
+    int pos, offs, row_addr;
+    uint8_t thresh;
+    uint16_t val;
+    uint16_t *fbline;
+
+    offs = 0;
+    fbline = mensafb->fbmem;
+    for (b = 0; b < BRIGHT_LEVELS - 1; b++) {
+      thresh = 255 * (b + 1) / BRIGHT_LEVELS;
+      for (l = 0; l < mensafb->hmodules * LINES_PER_MODULE * ROWS_PER_LINE; l++) {
+	r = l / (mensafb->hmodules * LINES_PER_MODULE) + ((l & 1) ? 0 : ROWS_PER_LINE);
+	c = mensafb->x_res - 1 - ((l % (mensafb->hmodules * LINES_PER_MODULE)) / LINES_PER_MODULE * COLS_PER_MODULE);
+	row_addr = ((6 + (offs + l * COLS_PER_MODULE) / (mensafb->x_res * LINES_PER_MODULE)) % ROWS_PER_LINE) << 5;
+	for (pos = 0; pos < COLS_PER_MODULE; pos++, c--) {
+	  val = row_addr;
+	  for (i = 0; i < mensafb->vmodules; i++) {
+	    if (mensafb->inputfb[c + (r + LINES_PER_MODULE * ROWS_PER_LINE * i) * mensafb->x_res] >= thresh)
+	      val |= (1 << (mensafb->vmodules - 1 - i));
+	  }
+	  fbline[pos] = val;
+	}
+	fbline += COLS_PER_MODULE;
+      }
+      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
+    }
+    return 0;
+}
+
 static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 		const int width, const int height)
 {
@@ -75,6 +106,10 @@ static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
     int vmpos, vpos, hmpos, hpos, pos;
     int offs;
     uint8_t thresh;
+
+    if (col == 0 && mensafb->x_res == width &&
+        row == 0 && mensafb->y_res == height)
+	    return blit_fullscreen(mensafb);
 
     if (!is_inbounds(mensafb, col, row, width, height))
 	    return -1;
