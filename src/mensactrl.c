@@ -76,15 +76,42 @@ static int blit_fullscreen(struct mensa_fb *mensafb)
     uint16_t val;
     uint16_t *fbline;
 
+    /*
+     * fbline always points to the beginning of a contiguous run of 40 5-bit
+     * values in the output framebuffer, at the same time corresponding to
+     * the rightmost pixel of 5 contiguous runs of 40 pixels in the input
+     * framebuffer, multiples of 14 rows apart (the same line of each of the
+     * 5 module chains that are fed pixels in parallel).
+     */
     fbline = mensafb->fbmem;
     for (b = 0; b < BRIGHT_LEVELS - 1; b++) {
+      /*
+       * 17 brightness levels are achieved by 16 consecutive framebuffers that
+       * are shown one after the other. The brightness of each individual pixel
+       * depends on the number of frames in which it is lit up.
+       */
       thresh = 255 * (b + 1) / BRIGHT_LEVELS;
       for (l = 0; l < mensafb->hmodules * LINES_PER_MODULE * ROWS_PER_LINE; l++) {
+	/*
+	 * Each pair of 40-pixel runs share the same x-coordinates in the
+	 * input framebuffer, with the even run 7 rows below the odd run,
+	 * in the same module.
+	 */
 	r = l / (mensafb->hmodules * LINES_PER_MODULE) + ((l & 1) ? 0 : ROWS_PER_LINE);
+	/*
+	 * Since the LCD controller data pins [4:0] are output into shift
+	 * registers, the values shifted out first appear as the rightmost
+	 * pixels. Thus the column in the input framebuffer is inverted.
+	 */
 	c = mensafb->x_res - 1 - ((l % (mensafb->hmodules * LINES_PER_MODULE)) / LINES_PER_MODULE * COLS_PER_MODULE);
+	/*
+	 * The row address selects one of the 7 (sets of two) lines in each
+	 * module. It is clocked out on the LCD controller data pins [7:5].
+	 */
 	row_addr = ((6 + (l * COLS_PER_MODULE) / (mensafb->x_res * LINES_PER_MODULE)) % ROWS_PER_LINE) << 5;
 	for (pos = 0; pos < COLS_PER_MODULE; pos++, c--) {
 	  val = row_addr;
+	  /* Iterate over all 5 module chains */
 	  for (i = 0; i < mensafb->vmodules; i++) {
 	    if (mensafb->inputfb[c + (r + LINES_PER_MODULE * ROWS_PER_LINE * i) * mensafb->x_res] >= thresh)
 	      val |= (1 << (mensafb->vmodules - 1 - i));
