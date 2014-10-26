@@ -76,14 +76,13 @@ static int blit_fullscreen(struct mensa_fb *mensafb)
     uint16_t val;
     uint16_t *fbline;
 
-    offs = 0;
     fbline = mensafb->fbmem;
     for (b = 0; b < BRIGHT_LEVELS - 1; b++) {
       thresh = 255 * (b + 1) / BRIGHT_LEVELS;
       for (l = 0; l < mensafb->hmodules * LINES_PER_MODULE * ROWS_PER_LINE; l++) {
 	r = l / (mensafb->hmodules * LINES_PER_MODULE) + ((l & 1) ? 0 : ROWS_PER_LINE);
 	c = mensafb->x_res - 1 - ((l % (mensafb->hmodules * LINES_PER_MODULE)) / LINES_PER_MODULE * COLS_PER_MODULE);
-	row_addr = ((6 + (offs + l * COLS_PER_MODULE) / (mensafb->x_res * LINES_PER_MODULE)) % ROWS_PER_LINE) << 5;
+	row_addr = ((6 + (l * COLS_PER_MODULE) / (mensafb->x_res * LINES_PER_MODULE)) % ROWS_PER_LINE) << 5;
 	for (pos = 0; pos < COLS_PER_MODULE; pos++, c--) {
 	  val = row_addr;
 	  for (i = 0; i < mensafb->vmodules; i++) {
@@ -94,7 +93,6 @@ static int blit_fullscreen(struct mensa_fb *mensafb)
 	}
 	fbline += COLS_PER_MODULE;
       }
-      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
     }
     return 0;
 }
