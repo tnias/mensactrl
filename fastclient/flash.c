@@ -59,10 +59,10 @@ int main (void) {
       case 1: d = 0; break;
       case 2: d = 0; break;
       case 3: d = 0; break;
-      case 4: d = 1; break;
-      case 5: d = 1; break;
+      case 4: d = 255; break;
+      case 5: d = 255; break;
       case 6: d = 0; break;
-      case 7: d = 1; break;
+      case 7: d = 255; break;
     }
 
     for(int i = 0; i < WIDTH * HEIGHT; ++i) {

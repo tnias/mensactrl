@@ -65,7 +65,7 @@ int main (void) {
 
       int thresh = 32768 + sharpness[y / 7] * sin(f[y / 7] + 1.0 * x / 60) * 32768;
 
-      snow->data[i] = (rand() % 65536) > thresh;
+      snow->data[i] = ((rand() % 65536) > thresh) * 255;
     }
 
     for(int i = 0; i < HEIGHT / 7; ++i) {
