@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
 #include <linux/fb.h>
@@ -29,17 +30,22 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <math.h>
+#include <time.h>
 
 #include <zmq.h>
 
 #include "common.h"
+#include "fb.h"
 
 #define ROWS_PER_LINE 7
 #define LINES_PER_MODULE 2
 #define COLS_PER_MODULE 40
+#define BRIGHT_LEVELS 17
 
 #define POWER_TIMEOUT 180000 /* milliseconds */
 #define POWER_GPIO_PATH "/sys/class/gpio/gpio91/value"
+
+#define BENCH_LOOPS 100
 
 struct mensa_fb {
 	int x_res, y_res;
@@ -62,45 +68,111 @@ static int is_inbounds(struct mensa_fb *mensafb, int x, int y, int width, int he
     return 1;
 }
 
+static int blit_fullscreen(struct mensa_fb *mensafb)
+{
+    int r, c, b, i, l;
+    int pos, offs, row_addr;
+    uint8_t thresh;
+    uint16_t val;
+    uint16_t *fbline;
+
+    /*
+     * fbline always points to the beginning of a contiguous run of 40 5-bit
+     * values in the output framebuffer, at the same time corresponding to
+     * the rightmost pixel of 5 contiguous runs of 40 pixels in the input
+     * framebuffer, multiples of 14 rows apart (the same line of each of the
+     * 5 module chains that are fed pixels in parallel).
+     */
+    fbline = mensafb->fbmem;
+    for (b = 0; b < BRIGHT_LEVELS - 1; b++) {
+      /*
+       * 17 brightness levels are achieved by 16 consecutive framebuffers that
+       * are shown one after the other. The brightness of each individual pixel
+       * depends on the number of frames in which it is lit up.
+       */
+      thresh = 255 * (b + 1) / BRIGHT_LEVELS;
+      for (l = 0; l < mensafb->hmodules * LINES_PER_MODULE * ROWS_PER_LINE; l++) {
+	/*
+	 * Each pair of 40-pixel runs share the same x-coordinates in the
+	 * input framebuffer, with the even run 7 rows below the odd run,
+	 * in the same module.
+	 */
+	r = l / (mensafb->hmodules * LINES_PER_MODULE) + ((l & 1) ? 0 : ROWS_PER_LINE);
+	/*
+	 * Since the LCD controller data pins [4:0] are output into shift
+	 * registers, the values shifted out first appear as the rightmost
+	 * pixels. Thus the column in the input framebuffer is inverted.
+	 */
+	c = mensafb->x_res - 1 - ((l % (mensafb->hmodules * LINES_PER_MODULE)) / LINES_PER_MODULE * COLS_PER_MODULE);
+	/*
+	 * The row address selects one of the 7 (sets of two) lines in each
+	 * module. It is clocked out on the LCD controller data pins [7:5].
+	 */
+	row_addr = ((6 + (l * COLS_PER_MODULE) / (mensafb->x_res * LINES_PER_MODULE)) % ROWS_PER_LINE) << 5;
+	for (pos = 0; pos < COLS_PER_MODULE; pos++, c--) {
+	  val = row_addr;
+	  /* Iterate over all 5 module chains */
+	  for (i = 0; i < mensafb->vmodules; i++) {
+	    if (mensafb->inputfb[c + (r + LINES_PER_MODULE * ROWS_PER_LINE * i) * mensafb->x_res] >= thresh)
+	      val |= (1 << (mensafb->vmodules - 1 - i));
+	  }
+	  fbline[pos] = val;
+	}
+	fbline += COLS_PER_MODULE;
+      }
+    }
+    return 0;
+}
+
 static int blit_area(struct mensa_fb *mensafb, const int col, const int row,
 		const int width, const int height)
 {
-    int r, c;
+    int r, c, b;
     int vmpos, vpos, hmpos, hpos, pos;
+    int offs;
+    uint8_t thresh;
+
+    if (col == 0 && mensafb->x_res == width &&
+        row == 0 && mensafb->y_res == height)
+	    return blit_fullscreen(mensafb);
 
     if (!is_inbounds(mensafb, col, row, width, height))
 	    return -1;
 
-    for (r = row; r < row + height; r++) {
-	for (c = col; c < col + width; c++) {
-	    /* Calculate module and position inside the module */
-	    vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
-	    vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
-	    hmpos = c/(COLS_PER_MODULE);
-	    hpos = c%(COLS_PER_MODULE);
+    offs = 0;
+    for (b = 0; b < BRIGHT_LEVELS-1; b++) {
+      thresh = 255 * (b+1) / BRIGHT_LEVELS;
+      for (r = row; r < row + height; r++) {
+        for (c = col; c < col + width; c++) {
+          /* Calculate module and position inside the module */
+          vmpos = r/(LINES_PER_MODULE*ROWS_PER_LINE);
+	  vpos = r%(LINES_PER_MODULE*ROWS_PER_LINE);
+	  hmpos = c/(COLS_PER_MODULE);
+	  hpos = c%(COLS_PER_MODULE);
 
-	    pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
+	  pos = hpos + hmpos*COLS_PER_MODULE*LINES_PER_MODULE;
 
-	    if (vpos >= ROWS_PER_LINE) {
-		vpos -= ROWS_PER_LINE;
-		pos += COLS_PER_MODULE;
-	    }
+	  if (vpos >= ROWS_PER_LINE) {
+            vpos -= ROWS_PER_LINE;
+	    pos += COLS_PER_MODULE;
+	  }
 
-	    /* Invert order */
-	    pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
+	  /* Invert order */
+	  pos = (LINES_PER_MODULE * COLS_PER_MODULE * mensafb->hmodules - 1) - pos;
 
-	    /* Add in row offset */
-	    pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
+	  /* Add in row offset */
+	  pos = pos + vpos*(mensafb->hmodules*COLS_PER_MODULE*LINES_PER_MODULE);
 
-
-	    if (mensafb->inputfb[c + r * mensafb->x_res] == 0) {
-		/* clear bit */
-		mensafb->fbmem[pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
-	    } else {
-		/* set bit */
-		mensafb->fbmem[pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
-	    }
+          if (mensafb->inputfb[c + r * mensafb->x_res] < thresh) {
+            /* clear bit */
+            mensafb->fbmem[offs + pos] &= ~(1<<(mensafb->vmodules - 1 - vmpos));
+          } else {
+            /* set bit */
+            mensafb->fbmem[offs + pos] |= (1<<(mensafb->vmodules - 1 - vmpos));
+          }
 	}
+      }
+      offs += LINES_PER_MODULE * ROWS_PER_LINE * COLS_PER_MODULE * mensafb->hmodules;
     }
     return 0;
 }
@@ -118,17 +190,35 @@ void setPixel(struct mensa_fb *mensafb, int col, int row, uint8_t bright)
 static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules)
 {
 	struct mensa_fb *mensafb = malloc(sizeof(struct mensa_fb));
+	struct fb_var_screeninfo vsinfo;
 	int i;
 
 	mensafb->x_res = COLS_PER_MODULE * hmodules;
 	mensafb->y_res = ROWS_PER_LINE * LINES_PER_MODULE * vmodules;
 	mensafb->size = mensafb->x_res * ROWS_PER_LINE * LINES_PER_MODULE;
 	mensafb->fd = open(devname, O_RDWR);
+
 	if (mensafb->fd < 0) {
 		perror("opening fb");
 		free(mensafb);
 		exit(1);
 	}
+
+	if (ioctl(mensafb->fd, FBIOGET_VSCREENINFO, &vsinfo)) {
+		perror("could not get var screen info, ignoring");
+	}
+
+	vsinfo.xres = 960;
+	vsinfo.xres_virtual = vsinfo.xres;
+	vsinfo.yres = 7*(BRIGHT_LEVELS-1) + 1;
+	vsinfo.yres_virtual = vsinfo.yres;
+
+	vsinfo.pixclock = 125000;
+
+	if (ioctl(mensafb->fd, FBIOPUT_VSCREENINFO, &vsinfo)) {
+		perror("could not set var screen info, ignoring");
+	}
+
 	mensafb->inputfb = malloc(mensafb->x_res * mensafb->y_res);
 	if (!mensafb->inputfb) {
 		free(mensafb);
@@ -136,7 +226,7 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 	}
 	memset(mensafb->inputfb, 0, mensafb->x_res * mensafb->y_res);
 
-	mensafb->fbmem=mmap(NULL, mensafb->size * 2 + mensafb->x_res * LINES_PER_MODULE * 2,
+	mensafb->fbmem=mmap(NULL, mensafb->size * 2 * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE * 2,
 			PROT_READ|PROT_WRITE, MAP_SHARED, mensafb->fd, 0);
 	if (mensafb->fbmem==NULL) {
 		perror("mmap'ing fb");
@@ -144,7 +234,8 @@ static struct mensa_fb *setup_fb(const char *devname, int hmodules, int vmodules
 		free(mensafb);
 		exit(1);
 	}
-	for (i = 0; i < mensafb->size + mensafb->x_res * LINES_PER_MODULE; i++)
+	memset(mensafb->fbmem, 0, mensafb->size * 2 * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE * 2);
+	for (i = 0; i < mensafb->size * (BRIGHT_LEVELS-1) + mensafb->x_res * LINES_PER_MODULE; i++)
 		mensafb->fbmem[i] = ((6 + i / (mensafb->x_res * LINES_PER_MODULE)) % 7)<<5;
 
 	mensafb->hmodules = hmodules;
@@ -238,7 +329,7 @@ void handleCommand(struct mensa_fb *mensafb, struct packet *p, size_t len) {
 }
 
 int setPower(int enabled) {
-	int fd;
+	int fd, ret;
 
 	if (power == enabled)
 	    return 0;
@@ -249,7 +340,12 @@ int setPower(int enabled) {
 		return fd;
 	}
 
-	write(fd, enabled ? "1" : "0", 1);
+	ret = write(fd, enabled ? "1" : "0", 1);
+	if (ret != 1) {
+		perror("Could not write to fd");
+		return ret;
+	}
+
 
 	power = enabled;
 
@@ -257,14 +353,45 @@ int setPower(int enabled) {
 	return 0;
 }
 
+void runBenchmark(struct mensa_fb *mensafb) {
+	clock_t t = clock();
+	for (int i = 0; i < BENCH_LOOPS; i++) {
+		blit_area(mensafb, 0, 0, mensafb->x_res, mensafb->y_res);
+	}
+	t = clock() - t;
+	printf("%fus / blit_area\n", (float)t/100.0);
+}
+
 int main(int argc, char *argv[]) {
 	struct mensa_fb *mensafb;
 	void *context = zmq_ctx_new ();
 	void *responder = zmq_socket (context, ZMQ_REP);
 	int rc, timeout = POWER_TIMEOUT;
+	int opt;
+	bool benchmark = false;
 
-	if (argc != 2)
-		exit(1);
+	while ((opt = getopt(argc, argv, "b")) != -1) {
+		switch (opt) {
+		case 'b':
+			benchmark = true;
+			break;
+		default:
+			fprintf(stderr, "Usage: %s [-b] framebuffer\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "missing framebuffer argument\n");
+		exit(EXIT_FAILURE);
+	}
+
+	mensafb = setup_fb(argv[optind], 12, 5);
+
+	if (benchmark) {
+		runBenchmark(mensafb);
+		exit(0);
+	}
 
 	rc = zmq_setsockopt (responder, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
 	if (rc < 0)
@@ -273,8 +400,6 @@ int main(int argc, char *argv[]) {
 	rc = zmq_bind (responder, "tcp://*:5556");
 	if (rc < 0)
 		perror("zmq_bind");
-
-	mensafb = setup_fb(argv[1], 12, 5);
 
 	while (1) {
                 while (1) {

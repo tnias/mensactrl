@@ -55,11 +55,15 @@ def set_pixels(pixels):
   socket.send_multipart(msg + [b''])
   rx = socket.recv()
 
-def blit(x, y, w, h, pixels):
+def blit(x, y, w, h, pixels, rec=True):
   x += WOFFSET
   assert w*h == len(pixels)
   msg = struct.pack('<Biiii', 1, x, y, w, h)+b''.join(map(chr, pixels))
   socket.send_multipart([msg, b''])
+  if rec:
+    rx = socket.recv()
+
+def rec():
   rx = socket.recv()
 
 ################################################################################

@@ -1,0 +1,7 @@
+## SECTION=project_specific
+
+config SSH_KEYS
+	bool
+	prompt "ssh-keys"
+	help
+	  FIXME

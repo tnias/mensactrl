@@ -53,7 +53,9 @@ endif
 # autoconf
 #
 MENSA_CONTROL_CONF_TOOL	:= autoconf
-#MENSA_CONTROL_CONF_OPT	:= $(CROSS_AUTOCONF_USR)
+MENSA_CONTROL_CONF_OPT	:= \
+	$(CROSS_AUTOCONF_USR) \
+	--disable-debug
 
 #$(STATEDIR)/mensa-control.prepare:
 #	@$(call targetinfo)
