@@ -41,10 +41,12 @@ def send(screen):
 prev_mx = None
 font = None
 
-def draw(text, mark=None, points=None):
+def draw(text, mark=None, points=None, fontname=None):
     global prev_mx, font
     points = points if points else 35 if mark else 60
-    font = pygame.font.SysFont("DejaVu Sans Mono", points, bold=True)
+    if fontname is None:
+        fontname = "DejaVu Sans Mono"
+    font = pygame.font.SysFont(fontname, points, bold=True)
     count = len(text)
     text = font.render(text, True, (255, 255, 255), (0, 0, 0))
     screen.set_palette(text.get_palette())
