@@ -106,7 +106,7 @@ def char_to_pixel_segment(c):
     for x in xrange(0, PWIDTH):
         for y in xrange(0, PHEIGHT):
             pix = (bitmapfont.FONT[c][x] & (1<<y)) >> y
-            pixels[y * PWIDTH + x] = pix
+            pixels[y * PWIDTH + x] = pix * 255
     return pixels
 
 # write string, starting at segment x,y. Tabs are expanded to 8 spaces, new
