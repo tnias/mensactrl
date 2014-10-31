@@ -19,10 +19,10 @@ def init_fire():
 # Smooth image and cool (darken) pixels according to cool_map
 def avg_cooled(x, y, buf):
 	res = 0
-	res += buf[(y*client.WIDTH-1) + x-1]
-	res += buf[(y*client.WIDTH-1) + x+1]
-	res += buf[(y*client.WIDTH+1) + x-1]
-	res += buf[(y*client.WIDTH+1) + x+1]
+	res += buf[(y*client.WIDTH) + x-1]
+	res += buf[(y*client.WIDTH) + x+1]
+	res += buf[(y*client.WIDTH-1) + x]
+	res += buf[(y*client.WIDTH+1) + x]
 	res += buf[(y*client.WIDTH) + x]
 	res = int(res / 5.0 - cool_map[(y+ cool_offs)%client.HEIGHT*client.WIDTH + x])
 	if res < 0:
