@@ -24,7 +24,7 @@ HEIGHT = PHEIGHT*NUM_SEG_Y
 
 import sys
 
-SERVER = "tcp://mensadisplay:5556"
+SERVER = "tcp://151.217.19.24:5556"
 
 if len(sys.argv) >= 2:
   SERVER = sys.argv[1]
@@ -71,6 +71,8 @@ def rec():
 ################################################################################
 
 # screen buffer used for text handling
+print WIDTH
+print HEIGHT
 SCREENBUFFER = [0] * WIDTH * HEIGHT
 
 # blit to screen buffer, also updates screen
