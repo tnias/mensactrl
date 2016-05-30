@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 # 5x7 font from http://www.hwsw.no/snippets/5x7_LCD_font.php
